@@ -1,4 +1,3 @@
- HEAD
 # Project Atlas — AI Market Research Report Copilot
 
 Project Atlas is an enterprise-grade AI Copilot designed for market research analysts and corporate clients. It integrates with an existing PHP CodeIgniter 3 portal and provides trusted, cited, entitlement-enforced market research answers with automated escalation and deterministic calculations.
