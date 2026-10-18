@@ -14,6 +14,7 @@ $route['translate_uri_dashes'] = FALSE;
 // Chat & AJAX routes
 $route['chat'] = 'chat/index';
 $route['chat/ask'] = 'chat/ask';
+$route['chat/send'] = 'chat/ask'; // Alias for compatibility
 $route['chat/history'] = 'chat/history';
 $route['chat/feedback'] = 'chat/feedback';
 $route['chat/escalations'] = 'chat/escalations';

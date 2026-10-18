@@ -16,9 +16,18 @@ def classify_query(query: str) -> Dict[str, Any]:
     """Classify user query into appropriate execution route with reason."""
     q_lower = query.lower().strip()
 
+    # 0. Greetings / Help / Identity queries
+    if re.match(r"^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening)|who\s+are\s+you|what\s+can\s+you\s+do|help)[\s!.,?]*$", q_lower):
+        return {
+            "route": "greeting",
+            "sub_reason": "greeting_or_introduction",
+            "confidence": 0.99,
+        }
+
     # 1. Unsafe detection: SQL write commands, exfiltration, instruction overrides
     unsafe_patterns = [
-        (r"\b(delete|drop|truncate|alter|insert|update)\s+.*(table|row|from|database)", "sql_modification_attempt"),
+        (r"\b(delete\s+from|drop\s+(table|database|view|index)|truncate\s+(table)?|alter\s+table|insert\s+into|update\s+\w+\s+set)\b", "sql_modification_attempt"),
+        (r"\b(delete|drop|truncate|alter|insert|update)\s+.*(table|row|from|database|into|set)", "sql_modification_attempt"),
         (r"\b(list|show|print|give|dump)\s+.*(client|customer)?\s*(email|password|credential|secret)", "sensitive_data_exfiltration"),
         (r"\b(ignore|disregard|forget)\s+.*(previous|all|system)?\s*(instruction|prompt|rule)", "prompt_injection_override"),
         (r"\b(reveal|print)\s+.*(system\s*prompt|api\s*key)", "credential_harvesting"),

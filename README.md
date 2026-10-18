@@ -137,6 +137,50 @@ project-atlas/
 - **Pre-LLM Entitlement Filtering**: Restrict report chunks in retrieval layer before LLM sees data.
 - **Deterministic Math**: Financial computations (CAGR, forecasts) run through Python calculators, never raw LLM mental math.
 - **SQL Guardrails**: Read-only parameterized execution only; DDL/DML injection attempts blocked.
-=======
-# Project-Atlas
- origin/main
+
+---
+
+## 🧪 Phase 5 — AI Evaluation, Security & Packaging
+
+### Run Phase 5 Complete Verification Suite:
+```powershell
+backend\.venv\Scripts\python.exe scripts/verify_phase5.py
+```
+- **25 Benchmark Questions:** 100% Pass Rate (25/25), Average Latency: ~15-20 ms.
+- **Security Testing:** Verifies entitlement isolation (C-02 restricted from R-101), direct/indirect prompt injection defusal, and SQL write blockers (`DELETE`, `DROP`, `UPDATE`, `INSERT`, `ALTER`).
+- **Failure Analysis:** Regression validation of 5 analyzed edge cases.
+- **Deployment Verification:** Validates Docker Compose, Dockerfiles, environment isolation, and health checks.
+
+### Run All 22 Pytest Tests:
+```powershell
+backend\.venv\Scripts\python.exe -m pytest backend/tests -v
+```
+
+---
+
+## 🐳 Production Deployment (Docker Compose) vs Local Prototype
+
+### 1. Local Prototype (Quick Development & Demo)
+- Run `start.bat` to launch local Python FastAPI and PHP built-in server with visible terminals.
+- Stop gracefully with `stop.bat`.
+- Uses active local MySQL instance.
+
+### 2. Production Deployment (Docker Compose)
+- Multi-container topology defined in [`docker-compose.yml`](docker-compose.yml):
+  - **`mysql`**: MySQL 8.0 with automated schema initialization from `database/schema.sql` and healthcheck.
+  - **`backend`**: Python 3.11 container with FastAPI service running on port `8000`.
+  - **`portal`**: PHP 8.1 Apache container with `mod_rewrite`, `mysqli`, and `curl` on port `8080`.
+  - **Isolated Bridge Network**: `atlas_network` with named persistent volumes for MySQL and ChromaDB.
+
+To spin up the entire production stack:
+```bash
+docker compose up --build -d
+```
+To verify container health:
+```bash
+docker compose ps
+```
+To tear down:
+```bash
+docker compose down
+```

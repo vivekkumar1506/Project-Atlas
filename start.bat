@@ -37,9 +37,9 @@ echo.
 echo [2/5] Detecting Python virtual environment...
 set "PYTHON_EXE="
 
-if exist "backend\.venv\Scripts\python.exe" (
+if exist "%~dp0backend\.venv\Scripts\python.exe" (
     set "PYTHON_EXE=%~dp0backend\.venv\Scripts\python.exe"
-) else if exist ".venv\Scripts\python.exe" (
+) else if exist "%~dp0.venv\Scripts\python.exe" (
     set "PYTHON_EXE=%~dp0.venv\Scripts\python.exe"
 ) else (
     where python.exe >nul 2>&1
@@ -122,26 +122,26 @@ echo [5/5] Checking service statuses and launching servers...
 
 :: Check if FastAPI backend is already running
 set "FASTAPI_RUNNING=0"
-"!PYTHON_EXE!" -c "import socket, sys; s=socket.socket(); res=s.connect_ex(('127.0.0.1', %FASTAPI_PORT%)); s.close(); sys.exit(0 if res==0 else 1)" >nul 2>&1
+"!PYTHON_EXE!" -c "import socket, sys; s=socket.socket(); res=s.connect_ex(('127.0.0.1', int('!FASTAPI_PORT!'))); s.close(); sys.exit(0 if res==0 else 1)" >nul 2>&1
 if not errorlevel 1 (
     set "FASTAPI_RUNNING=1"
-    echo [INFO] FastAPI AI backend is ALREADY RUNNING on port %FASTAPI_PORT%. Skipping launch.
+    echo [INFO] FastAPI AI backend is ALREADY RUNNING on port !FASTAPI_PORT!. Skipping launch.
 ) else (
-    echo [INFO] Launching FastAPI AI backend on port %FASTAPI_PORT% in separate window...
-    start "Project Atlas - FastAPI Backend (Port %FASTAPI_PORT%)" cmd /k "title Project Atlas - FastAPI Backend ^& cd /d ""%~dp0"" ^& echo Starting FastAPI backend on port %FASTAPI_PORT%... ^& ""!PYTHON_EXE!"" -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port %FASTAPI_PORT%"
+    echo [INFO] Launching FastAPI AI backend on port !FASTAPI_PORT! in separate window...
+    start "Project Atlas - FastAPI Backend" cmd.exe /k call "%~dp0run_backend.bat" !FASTAPI_PORT! "!PYTHON_EXE!"
 )
 
 :: Check if CI3 Portal is already running
 set "PORTAL_RUNNING=0"
-"!PYTHON_EXE!" -c "import socket, sys; s=socket.socket(); res=s.connect_ex(('127.0.0.1', %PORTAL_PORT%)); s.close(); sys.exit(0 if res==0 else 1)" >nul 2>&1
+"!PYTHON_EXE!" -c "import socket, sys; s=socket.socket(); res=s.connect_ex(('127.0.0.1', int('!PORTAL_PORT!'))); s.close(); sys.exit(0 if res==0 else 1)" >nul 2>&1
 if not errorlevel 1 (
     set "PORTAL_RUNNING=1"
-    echo [INFO] CodeIgniter 3 Portal is ALREADY RUNNING on port %PORTAL_PORT%. Skipping launch.
+    echo [INFO] CodeIgniter 3 Portal is ALREADY RUNNING on port !PORTAL_PORT!. Skipping launch.
 ) else (
     if defined PHP_EXE (
         echo [OK]   PHP CLI detected: !PHP_EXE!
-        echo [INFO] Launching CodeIgniter 3 Portal on port %PORTAL_PORT% in separate window...
-        start "Project Atlas - CI3 Portal (Port %PORTAL_PORT%)" cmd /k "title Project Atlas - CI3 Portal ^& cd /d ""%~dp0portal"" ^& echo Starting CodeIgniter 3 Portal on port %PORTAL_PORT%... ^& ""!PHP_EXE!"" -S 0.0.0.0:%PORTAL_PORT%"
+        echo [INFO] Launching CodeIgniter 3 Portal on port !PORTAL_PORT! in separate window...
+        start "Project Atlas - CI3 Portal" cmd.exe /k call "%~dp0run_portal.bat" !PORTAL_PORT! "!PHP_EXE!"
     ) else (
         echo [WARN] PHP CLI was not found on system PATH or standard folders.
         echo        The FastAPI AI Backend was launched, but the PHP portal UI could not start.
@@ -149,7 +149,7 @@ if not errorlevel 1 (
         echo        To run the CodeIgniter 3 Portal UI:
         echo          1. Install PHP or XAMPP
         echo          2. Add PHP to your system PATH
-        echo          3. Rerun start.bat or start manually: cd portal ^&^& php -S 0.0.0.0:%PORTAL_PORT%
+        echo          3. Rerun start.bat or start manually: cd portal ^&^& php -S 0.0.0.0:!PORTAL_PORT!
     )
 )
 
@@ -159,18 +159,24 @@ echo             PROJECT ATLAS SERVICES READY / RUNNING
 echo ======================================================================
 echo.
 echo   [1] CodeIgniter 3 Portal UI:
-echo       http://localhost:%PORTAL_PORT%/
+echo       http://localhost:!PORTAL_PORT!/
 echo.
 echo   [2] FastAPI AI Backend Docs:
-echo       http://localhost:%FASTAPI_PORT%/docs
+echo       http://localhost:!FASTAPI_PORT!/docs
 echo.
 echo   [3] Health Check Endpoint:
-echo       http://localhost:%FASTAPI_PORT%/health
+echo       http://localhost:!FASTAPI_PORT!/health
 echo.
 echo ----------------------------------------------------------------------
+echo   * Opening CodeIgniter 3 Portal in your default web browser...
 echo   * Server consoles are kept open in separate terminal windows.
 echo   * Check those windows if you encounter any runtime or database errors.
 echo   * To stop all running Atlas services, run stop.bat or close windows.
 echo ======================================================================
 echo.
+
+:: Automatically open browser after 2 seconds
+timeout /t 2 >nul 2>&1
+start http://localhost:!PORTAL_PORT!/
+
 pause

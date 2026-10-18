@@ -239,7 +239,10 @@ VALUES
     ('C-02', 'R-103', 'full', 'active'),
     ('C-03', 'R-101', 'full', 'active'),
     ('C-03', 'R-102', 'full', 'active'),
-    ('C-03', 'R-103', 'full', 'active')
+    ('C-03', 'R-103', 'full', 'active'),
+    ('C-03', 'R-104', 'full', 'active'),
+    ('C-03', 'R-105', 'full', 'active'),
+    ('C-03', 'R-106', 'full', 'active')
 ON DUPLICATE KEY UPDATE `status`=VALUES(`status`);
 
 -- 4. Seed Market Metrics (Appendix A Table)

@@ -1,0 +1,91 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. MySQL 8.0 Database Service
+  # ----------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: atlas_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: project_atlas
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - atlas_network
+
+  # ----------------------------------------------------------------------------
+  # 2. FastAPI AI Backend Service
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: atlas_backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: 8000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: project_atlas
+      API_KEY: atlas_secret_dev_key_2026
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - vector_data:/app/vector_store
+    networks:
+      - atlas_network
+
+  # ----------------------------------------------------------------------------
+  # 3. CodeIgniter 3 Portal Service
+  # ----------------------------------------------------------------------------
+  portal:
+    build:
+      context: .
+      dockerfile: portal/Dockerfile
+    container_name: atlas_portal
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      CI_ENV: production
+      DB_HOSTNAME: mysql
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_DATABASE: project_atlas
+      ATLAS_API_BASE_URL: http://backend:8000
+      ATLAS_API_KEY: atlas_secret_dev_key_2026
+    ports:
+      - "8080:80"
+    networks:
+      - atlas_network
+
+volumes:
+  mysql_data:
+    name: atlas_mysql_data
+  vector_data:
+    name: atlas_vector_data
+
+networks:
+  atlas_network:
+    name: atlas_network
+    driver: bridge
