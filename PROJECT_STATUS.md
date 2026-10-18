@@ -1,7 +1,7 @@
 # Project Atlas — Development Status & Session Handover
 
-**Last Updated:** Phase 2 (Knowledge Base, Ingestion & Access-Aware RAG) Completed  
-**Current Milestone:** Phase 2 Complete -> Ready for Phase 3 (Agent Graph, Guardrails & Deterministic Calculator)
+**Last Updated:** Phase 4 (CI3 Portal Integration) Completed  
+**Current Milestone:** Phase 4 Complete -> Ready for Phase 5 (Evaluation Suite & Packaging / Docker)
 
 ---
 
@@ -24,6 +24,36 @@ Project Atlas is a secure AI Market Research Report Copilot designed for market 
 ---
 
 ## 📚 Completed in Phase 2 (Ingestion & Access-Aware RAG)
+- 6 Market reports corpus created with exact Appendix A seed numbers and Page 14 prompt injection trap.
+- ChromaDB vector store with 384-dimensional dense semantic embedding engine (offline-first, zero download lag).
+- Pre-LLM Entitlement Filtering: `C-02` strictly prevented from retrieving unentitled `R-101` chunks.
+- API `POST /ingest` endpoint implemented and verified.
+
+---
+
+## 🤖 Completed in Phase 3 (Agent Workflow & Guardrails)
+
+1. **Query Router (`backend/app/agent/router.py`)**:
+   - Classifies requests into `factual`, `comparison`, `calculation`, `aggregate_sql`, `out_of_scope`, and `unsafe`.
+2. **Deterministic Calculator (`backend/app/tools/calculator.py`)**:
+   - Computes CAGR (`CAGR = (End/Start)^(1/N) - 1`) and projections (`FV = BV * (1 + CAGR)^N`).
+   - Surfaces inputs, base-year caveats, and explicit assumptions.
+3. **Safe Read-Only SQL Tool (`backend/app/tools/sql_tool.py`)**:
+   - Strict write-blocker (blocks DELETE, DROP, UPDATE, INSERT, ALTER).
+   - Enforces table allowlist (`reports`, `market_metrics`), statement timeouts, and row limits.
+4. **Critic & Fact-Checker (`backend/app/agent/critic.py`)**:
+   - Defuses document prompt injections (e.g. R-102 page 14 attack), logs security events to MySQL, and keeps legitimate facts.
+   - Detects conflicts between reports (R-101 vs R-102) and prevents averaging.
+   - Generates exact citations linked to report ID and page.
+5. **Agent Workflow Orchestrator (`backend/app/agent/workflow.py`)**:
+   - End-to-end execution of all 8 critical PRD scenarios.
+   - Persists conversation turns, assistant responses, citations, and auto-escalation tickets into MySQL.
+6. **API Endpoints (`backend/app/api/chat.py`)**:
+   - `POST /chat`: Returns typed `ChatResponse` contract with answer, citations, confidence, conflicts, derived_values, and escalation status.
+   - `GET /escalations`: Exposes authorized escalation records.
+7. **Automated Verification**:
+   - `scripts/verify_phase3.py`: 8/8 acceptance criteria scenarios passing.
+   - Pytest suite: 15/15 tests passing across entire backend.
 
 1. **6 Market Reports Corpus**:
    - `R-101`: Global Smart Water Meter Market 2025 (USD 4.21B hardware+software+services, 11.2% CAGR 2025-2030, 38% APAC share).
@@ -95,16 +125,46 @@ Project Atlas is a secure AI Market Research Report Copilot designed for market 
 
 ---
 
+## 🌐 Completed in Phase 4 (CI3 Portal Integration — Option 2)
+
+1. **CodeIgniter 3 Portal Core & Directory Structure (`portal/`)**:
+   - `portal/application/controllers/Chat.php`: Session-authenticated controller handling `index()`, `send()`, `history()`, and `feedback()`. Enforces CSRF tokens, input boundary validation (2 to 2000 chars), and secure error handling.
+   - `portal/application/controllers/Auth.php`: Session switch client endpoint (`switch_client/{client_id}`) with whitelist validation (`C-01`, `C-02`, `C-03`).
+   - `portal/application/models/Chat_model.php`: Relational MySQL integration managing conversation sessions, message turns, client-scoped conversation history (IDOR protection), and feedback deduplication.
+   - `portal/application/libraries/Atlas_api.php`: Robust cURL HTTP client integrating with FastAPI `/chat` with connection timeout (5s) and read timeout (28s), returning graceful fallbacks if FastAPI is unavailable.
+   - `portal/application/config/`:
+     - `config.php`: CSRF protection enabled (`csrf_protection = TRUE`), session cookies, security headers.
+     - `database.php`: MySQL database driver using environment variables with local defaults.
+     - `atlas.php`: FastAPI base URL, API key, timeouts, and validation rules.
+     - `routes.php`: Clean routes for `/`, `chat/send`, `chat/history`, `chat/feedback`, and `auth/switch_client`.
+   - `portal/application/views/chat_view.php`: Modern, dark-mode, responsive, keyboard-accessible Chat UI featuring:
+     - Client selector context banner (`C-01`, `C-02`, `C-03`)
+     - Expandable Citations accordion with Report ID, Page, and Source Location
+     - High-visibility Conflicting Market Figures callout
+     - Derived Formula calculation cards
+     - Escalation status badges with Reason and Ticket ID
+     - Thumbs up/down feedback controls with instant visual feedback and deduplication
+   - `portal/assets/css/portal.css`: Premium dark styling with glassmorphism, accent colors, and responsive layout.
+   - `portal/assets/js/portal.js`: Clean vanilla JavaScript handling asynchronous chat interactions, live CSRF token synchronization, citations toggling, and XSS-safe DOM updates.
+   - `portal/system/core/CodeIgniter.php`: Lightweight, self-contained CI3 application runtime.
+
+2. **Automated Verification**:
+   - `scripts/verify_phase4.py`: 6/6 end-to-end integration checks passing.
+   - `backend/tests/test_portal.py`: 7 automated tests covering question submission, input boundaries, history ownership & IDOR protection, feedback deduplication, XSS sanitization, and unentitled data protection.
+   - Pytest suite: **22/22 tests passing** across the entire backend and portal integration.
+
+---
+
 ## 🚀 Quick Commands for Resuming
 
-### Run Verification Script:
-```powershell
-backend\.venv\Scripts\python.exe scripts/verify_phase1.py
-```
-
-### Run Pytest Suite:
+### Run Complete Pytest Suite (22 Tests):
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest backend/tests -v
+```
+
+### Run Phase 4 Portal Verification:
+```powershell
+backend\.venv\Scripts\python.exe scripts/verify_phase4.py
 ```
 
 ### Start Backend Development Server:
@@ -116,9 +176,16 @@ backend\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host
 
 ---
 
-## 🎯 Next Steps (Phase 2 Roadmap)
-- [ ] Prepare initial 6 market research reports in `reports/` (PDF/Markdown/HTML including R-101 to R-106 and prompt injection trap in R-102).
-- [ ] Implement chunking pipeline with metadata extraction (report ID, sector, year, page).
-- [ ] Setup Vector Database (ChromaDB) with embeddings.
-- [ ] Implement `POST /ingest` endpoint.
-- [ ] Implement access-aware retriever with pre-LLM client entitlement filtering.
+## 🎯 Next Steps (Phase 5 Roadmap — Evaluation & Packaging)
+- [ ] **25 Evaluation Questions Benchmark (`evaluation/questions.json`)**:
+  - Author and configure the complete 25-question evaluation suite covering factual queries, conflicts, calculations, prompt injections, SQL write attempts, and escalations.
+- [ ] **Automated Evaluation Runner (`evaluation/eval_runner.py`)**:
+  - Automated runner executing the 25 benchmark queries against `/chat`.
+  - Calculate metrics: retrieval accuracy, citation precision, conflict identification rate, and refusal rates.
+- [ ] **Failure Analysis Report (`evaluation/evaluation_report.md`)**:
+  - Root cause analysis of at least 5 deliberate edge/failure cases as mandated by PRD Section 12.
+- [ ] **Multi-Container Docker Packaging (`docker-compose.yml`)**:
+  - Production containerization for MySQL 8.0, FastAPI AI backend, PHP-Apache CI3 portal, and shared vector volume.
+- [ ] **Final Deliverables & Reviewer Guide (`README.md` & `DELIVERABLES_NOTE.md`)**:
+  - Complete reviewer instructions (<10 min setup), architectural diagrams, and "What I would do with one more week" note.
+
