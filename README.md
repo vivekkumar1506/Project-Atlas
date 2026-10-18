@@ -61,20 +61,34 @@ backend\.venv\Scripts\activate
 pip install -r backend/requirements.txt
 ```
 
-### 3. Run the Backend API (Windows CMD)
+### 3. One-Click Prototype Launcher (`start.bat` & `stop.bat`)
+To start all prototype services (FastAPI AI Backend + CodeIgniter 3 Portal) simultaneously:
 ```cmd
-backend\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+start.bat
 ```
-- API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
+- **Automatic Environment Verification:** Verifies `.env` exists (creates from `.env.example` if missing), checks Python virtual environment, and verifies dependencies.
+- **Port Detection & Duplicate Prevention:** Detects configured ports (`8000` and `8080`), probes active sockets, and skips launching duplicate servers if already running.
+- **Separate Visible Consoles:** Opens FastAPI backend on port 8000 and CodeIgniter 3 portal on port 8080 in separate titled terminal windows so runtime errors remain visible.
+- **Local Access URLs:**
+  - CodeIgniter 3 Portal UI: [http://localhost:8080/](http://localhost:8080/)
+  - FastAPI AI Backend Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+  - Health Check Endpoint: [http://localhost:8000/health](http://localhost:8000/health)
 
-### 4. Run the CodeIgniter 3 Portal (Windows CMD)
+To stop all background services gracefully at any time:
 ```cmd
+stop.bat
+```
+
+### 4. Manual Startup (Alternative)
+```cmd
+:: Terminal 1 - Backend API
+backend\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+
+:: Terminal 2 - CodeIgniter 3 Portal
 cd portal
 php -S 0.0.0.0:8080
 ```
-- Portal Chat Interface: [http://localhost:8080/](http://localhost:8080/)
-- Authenticated client sessions can be switched dynamically between `C-01` (Northwind Utilities) and `C-02` (Blue Delta Infra) using the header dropdown.
+- Authenticated client sessions can be switched dynamically between `C-01` (Northwind Utilities), `C-02` (Blue Delta Infra), and `C-03` (Gamma Analytics) using the header dropdown.
 
 ### 5. Run Automated Tests & Verifications (Windows CMD)
 ```cmd

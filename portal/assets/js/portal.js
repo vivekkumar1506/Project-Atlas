@@ -193,7 +193,15 @@
         body: formData.toString()
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonErr) {
+        console.error('Server returned non-JSON response:', responseText);
+        showAlert('Server returned an unexpected format. Please check server logs.');
+        return;
+      }
 
       if (result.csrf_hash) {
         updateCsrfToken(result.csrf_hash);
@@ -210,7 +218,8 @@
         lastFailedQuestion = null;
       }
     } catch (err) {
-      showAlert('Network error: Unable to reach Portal AI gateway. Please retry.');
+      console.error('Fetch error:', err);
+      showAlert(err.message ? `Connection error: ${err.message}` : 'Network error: Unable to reach Portal AI gateway. Please retry.');
     } finally {
       sendBtn.disabled = false;
       if (loadingIndicator) loadingIndicator.style.display = 'none';

@@ -1,6 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+#[\AllowDynamicProperties]
 class Chat_model extends CI_Model {
 
     public function __construct() {
@@ -11,7 +12,7 @@ class Chat_model extends CI_Model {
     /**
      * Get or create a conversation session for the authenticated client.
      */
-    public function get_or_create_conversation($conversation_id, $client_id, $title = '') {
+    public function get_or_create_conversation($conversation_id, $client_id, $question = '') {
         $query = $this->db->get_where('conversations', array(
             'conversation_id' => $conversation_id,
             'client_id'       => $client_id
@@ -21,14 +22,12 @@ class Chat_model extends CI_Model {
             $data = array(
                 'conversation_id' => $conversation_id,
                 'client_id'       => $client_id,
-                'title'           => mb_substr($title, 0, 100),
-                'created_at'      => date('Y-m-d H:i:s'),
-                'updated_at'      => date('Y-m-d H:i:s')
+                'question'        => !empty($question) ? $question : 'Initial inquiry',
+                'answer_payload'  => json_encode(array('status' => 'pending')),
+                'confidence'      => 0.000,
+                'created_at'      => date('Y-m-d H:i:s')
             );
             $this->db->insert('conversations', $data);
-        } else {
-            $this->db->where('conversation_id', $conversation_id);
-            $this->db->update('conversations', array('updated_at' => date('Y-m-d H:i:s')));
         }
         return $conversation_id;
     }

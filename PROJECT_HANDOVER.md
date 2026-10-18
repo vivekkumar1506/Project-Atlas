@@ -32,7 +32,17 @@
 
 ---
 
-## ⚡ Quick Run Commands (Windows Terminal / PowerShell)
+## ⚡ Quick Run Commands (Windows Terminal / PowerShell / CMD)
+
+### 1-Click Launch (Starts Backend + Portal):
+```cmd
+start.bat
+```
+
+### 1-Click Stop (Stops All Running Services):
+```cmd
+stop.bat
+```
 
 ### Run Complete Pytest Suite (22/22 Passing):
 ```powershell
@@ -45,14 +55,9 @@ backend\.venv\Scripts\python.exe -m pytest backend/tests -v
 cd "c:\Users\vivek kumar\Desktop\Project Atlas"
 backend\.venv\Scripts\python.exe scripts/verify_phase4.py
 ```
-
-### Start Backend Development Server:
-```powershell
-cd "c:\Users\vivek kumar\Desktop\Project Atlas"
-backend\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
-```
-- Interactive API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Status: [http://localhost:8000/health](http://localhost:8000/health)
+- Interactive API Docs: http://localhost:8000/docs
+- CodeIgniter 3 Portal: http://localhost:8080/
+- Health Status: http://localhost:8000/health
 
 ---
 
