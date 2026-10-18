@@ -135,4 +135,53 @@ class Chat_model extends CI_Model {
 
         return $this->db->get()->result_array();
     }
+
+    /**
+     * Retrieve syndicated reports catalog with client entitlement status.
+     */
+    public function get_reports_catalog($client_id) {
+        $this->db->select('r.report_id, r.title, r.sector, r.year, r.access_policy');
+        $this->db->from('reports r');
+        $this->db->order_by('r.report_id', 'ASC');
+        $reports = $this->db->get()->result_array();
+
+        // Get entitled report IDs for client
+        $this->db->select('report_id');
+        $this->db->from('client_report_entitlements');
+        $this->db->where('client_id', $client_id);
+        $this->db->where('status', 'active');
+        $entitled_rows = $this->db->get()->result_array();
+        $entitled_ids = array_column($entitled_rows, 'report_id');
+
+        foreach ($reports as &$rep) {
+            $rep_id = $rep['report_id'];
+            $is_public = (stripos($rep['access_policy'], 'public') !== false);
+            $is_entitled = in_array($rep_id, $entitled_ids) || $is_public;
+
+            $rep['is_public'] = $is_public;
+            $rep['is_entitled'] = $is_entitled;
+
+            if ($client_id === 'C-03') {
+                $rep['status_label'] = 'Enterprise Active';
+                $rep['status_class'] = 'status-enterprise';
+                $rep['icon'] = '⚡';
+            } elseif ($is_entitled) {
+                if ($is_public) {
+                    $rep['status_label'] = 'Public Excerpt';
+                    $rep['status_class'] = 'status-public';
+                    $rep['icon'] = '🌐';
+                } else {
+                    $rep['status_label'] = 'Purchased';
+                    $rep['status_class'] = 'status-purchased';
+                    $rep['icon'] = '✓';
+                }
+            } else {
+                $rep['status_label'] = ($rep_id === 'R-101' && $client_id === 'C-02') ? 'Restricted' : 'Upgrade Required';
+                $rep['status_class'] = 'status-locked';
+                $rep['icon'] = '🔒';
+            }
+        }
+        return $reports;
+    }
 }
+

@@ -1,8 +1,10 @@
-# Project Atlas - CodeIgniter 3 Portal Dockerfile
+# Project Atlas - CodeIgniter 3 Portal Dockerfile (Linux/Production)
 FROM php:8.1-apache
 
-# Enable Apache rewrite module
-RUN a2enmod rewrite
+# Enable Apache rewrite module and configure AllowOverride All for clean routing
+RUN a2enmod rewrite \
+    && sed -ri -e 's!AllowOverride None!AllowOverride All!g' /etc/apache2/apache2.conf \
+    && sed -ri -e 's!AllowOverride None!AllowOverride All!g' /etc/apache2/conf-available/*.conf 2>/dev/null || true
 
 # Install PHP extensions required by CI3 (mysqli, pdo_mysql, curl)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && docker-php-ext-install mysqli pdo_mysql curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure Apache DocumentRoot to /var/www/html
+# Configure Apache DocumentRoot
 WORKDIR /var/www/html
 
 # Copy portal source code
@@ -23,6 +25,7 @@ RUN chown -R www-data:www-data /var/www/html \
 
 EXPOSE 80
 
+# Health check targeting front controller
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:80/ || exit 1
 

@@ -35,13 +35,17 @@ class Chat extends CI_Controller {
         // Fetch escalations
         $escalations = $this->Chat_model->get_client_escalations($client_id, 10);
 
+        // Fetch syndicated reports catalog with client entitlement indicators
+        $reports_catalog = $this->Chat_model->get_reports_catalog($client_id);
+
         $data = array(
-            'client_id'     => $client_id,
-            'client_name'   => $client_name,
-            'history'       => $history,
-            'escalations'   => $escalations,
-            'csrf_token'    => $this->security->get_csrf_token_name(),
-            'csrf_hash'     => $this->security->get_csrf_hash()
+            'client_id'       => $client_id,
+            'client_name'     => $client_name,
+            'history'         => $history,
+            'escalations'     => $escalations,
+            'reports_catalog' => $reports_catalog,
+            'csrf_token'      => $this->security->get_csrf_token_name(),
+            'csrf_hash'       => $this->security->get_csrf_hash()
         );
 
         $this->load->view('chat_view', $data);

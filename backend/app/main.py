@@ -33,6 +33,19 @@ async def lifespan(app: FastAPI):
             logger.info(f"Database connection verified (latency: {health.get('latency_ms')}ms)")
         else:
             logger.warning(f"Database connection degraded: {health.get('error')}")
+
+        # Auto-ingest reports into ChromaDB on fresh startup if empty
+        try:
+            from backend.app.rag.vector_store import get_reports_collection
+            from backend.app.rag.ingestion import ingest_all_reports
+            col = get_reports_collection()
+            if col.count() == 0:
+                logger.info("ChromaDB vector store is empty on startup. Ingesting syndicated reports...")
+                ingest_all_reports()
+                logger.info(f"Auto-ingestion completed. Indexed chunks: {col.count()}")
+        except Exception as vec_exc:
+            logger.warning(f"Vector store verification note: {vec_exc}")
+
     except Exception as exc:
         logger.error(f"Error during database initialization: {exc}")
 

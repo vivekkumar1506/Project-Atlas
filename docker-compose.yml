@@ -37,18 +37,25 @@ services:
         condition: service_healthy
     environment:
       APP_ENV: production
-      PORT: 8000
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: root
-      DB_NAME: project_atlas
+      ENVIRONMENT: production
+      APP_PORT: 8000
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: project_atlas
       API_KEY: atlas_secret_dev_key_2026
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"
     volumes:
       - vector_data:/app/vector_store
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - atlas_network
 
@@ -63,16 +70,19 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       mysql:
         condition: service_healthy
     environment:
       CI_ENV: production
-      DB_HOSTNAME: mysql
-      DB_USERNAME: root
-      DB_PASSWORD: root
-      DB_DATABASE: project_atlas
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: project_atlas
+      FASTAPI_BASE_URL: http://backend:8000
       ATLAS_API_BASE_URL: http://backend:8000
+      API_KEY: atlas_secret_dev_key_2026
       ATLAS_API_KEY: atlas_secret_dev_key_2026
     ports:
       - "8080:80"
