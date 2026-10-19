@@ -28,7 +28,8 @@ def classify_query(query: str) -> Dict[str, Any]:
     unsafe_patterns = [
         (r"\b(delete\s+from|drop\s+(table|database|view|index)|truncate\s+(table)?|alter\s+table|insert\s+into|update\s+\w+\s+set)\b", "sql_modification_attempt"),
         (r"\b(delete|drop|truncate|alter|insert|update)\s+.*(table|row|from|database|into|set)", "sql_modification_attempt"),
-        (r"\b(list|show|print|give|dump)\s+.*(client|customer)?\s*(email|password|credential|secret)", "sensitive_data_exfiltration"),
+        (r"\b(output|list|show|print|give|dump|extract)\s+.*(client|customer)?\s*(email|password|credential|secret)", "sensitive_data_exfiltration"),
+        (r"\b(diagnostic\s+override|system\s+override)\b", "sensitive_data_exfiltration"),
         (r"\b(ignore|disregard|forget)\s+.*(previous|all|system)?\s*(instruction|prompt|rule)", "prompt_injection_override"),
         (r"\b(reveal|print)\s+.*(system\s*prompt|api\s*key)", "credential_harvesting"),
     ]
@@ -55,7 +56,7 @@ def classify_query(query: str) -> Dict[str, Any]:
 
     # 3. Aggregate SQL questions: queries asking for counts, library summaries, metadata
     sql_patterns = [
-        r"\b(how\s+many\s+reports|which\s+sector\s+has\s+the\s+most|most\s+reports\s+in\s+your\s+library|count\s+of\s+reports)\b",
+        r"\b(how\s+many\s+(total\s+)?.*reports|which\s+sector\s+has\s+the\s+(highest|most)|most\s+reports|count\s+of\s+reports|total\s+.*reports\s+(are\s+)?available)\b",
         r"\b(average\s+market\s+size\s+across|aggregate|list\s+all\s+sectors)\b",
     ]
     for pattern in sql_patterns:

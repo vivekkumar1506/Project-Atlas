@@ -10,7 +10,8 @@ from backend.app.services.db import engine
 
 @pytest.fixture
 def client():
-    with TestClient(app) as test_client:
+    settings = get_settings()
+    with TestClient(app, headers={"X-API-Key": settings.api_key}) as test_client:
         yield test_client
 
 

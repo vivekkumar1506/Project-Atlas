@@ -3,16 +3,39 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 /*
 |--------------------------------------------------------------------------
-| Project Atlas - CodeIgniter 3 Application Configuration
+| Base Site URL
 |--------------------------------------------------------------------------
 */
+$config['base_url'] = getenv('PORTAL_BASE_URL') ?: ((isset($_SERVER['HTTP_HOST'])) ? ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/' : 'http://127.0.0.1:8080/');
 
-$config['base_url'] = getenv('PORTAL_BASE_URL') ?: 'http://localhost:8080/';
+/*
+|--------------------------------------------------------------------------
+| Index File
+|--------------------------------------------------------------------------
+*/
 $config['index_page'] = 'index.php';
+
+/*
+|--------------------------------------------------------------------------
+| URI PROTOCOL
+|--------------------------------------------------------------------------
+*/
 $config['uri_protocol'] = 'REQUEST_URI';
+
+/*
+|--------------------------------------------------------------------------
+| URL suffix & Language & Charset
+|--------------------------------------------------------------------------
+*/
 $config['url_suffix'] = '';
-$config['language'] = 'english';
-$config['charset'] = 'UTF-8';
+$config['language']   = 'english';
+$config['charset']    = 'UTF-8';
+
+/*
+|--------------------------------------------------------------------------
+| Enable/Disable System Hooks & Class Extension Prefix
+|--------------------------------------------------------------------------
+*/
 $config['enable_hooks'] = FALSE;
 $config['subclass_prefix'] = 'MY_';
 $config['composer_autoload'] = FALSE;
@@ -20,7 +43,28 @@ $config['permitted_uri_chars'] = 'a-z 0-9~%.:_\-';
 
 /*
 |--------------------------------------------------------------------------
-| Session Configuration
+| Custom Log & Error Settings
+|--------------------------------------------------------------------------
+*/
+$config['log_threshold'] = 1;
+$config['log_path'] = '';
+$config['log_file_extension'] = '';
+$config['log_file_permissions'] = 0644;
+$config['log_date_format'] = 'Y-m-d H:i:s';
+$config['error_views_path'] = '';
+$config['cache_path'] = '';
+$config['cache_query_string'] = FALSE;
+
+/*
+|--------------------------------------------------------------------------
+| Encryption Key (Mandatory for CI3 Session & Encryption)
+|--------------------------------------------------------------------------
+*/
+$config['encryption_key'] = 'atlas_market_intel_sec_key_32chars';
+
+/*
+|--------------------------------------------------------------------------
+| Session Variables
 |--------------------------------------------------------------------------
 */
 $config['sess_driver'] = 'files';
@@ -41,6 +85,9 @@ $config['cookie_domain']   = '';
 $config['cookie_path']     = '/';
 $config['cookie_secure']   = FALSE;
 $config['cookie_httponly'] = TRUE;
+
+$config['standardize_newlines'] = FALSE;
+$config['global_xss_filtering'] = FALSE;
 
 // Enable Cross Site Request Forgery (CSRF) Protection
 $config['csrf_protection'] = TRUE;

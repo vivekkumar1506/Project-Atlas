@@ -107,21 +107,76 @@ def retrieve_entitled_chunks(
     collection = get_reports_collection()
 
     # Chroma where filter enforcing client entitlements before search
+    import re
+    mentioned_reps = [r for r in sorted(list(set(re.findall(r"\b(R-10[1-6])\b", query.upper())))) if r in allowed_report_ids]
+
     where_filter: Dict[str, Any] = {}
     allowed_list = list(allowed_report_ids)
 
-    if len(allowed_list) == 1:
+    if len(mentioned_reps) == 1:
+        where_filter = {"report_id": mentioned_reps[0]}
+    elif len(allowed_list) == 1:
         where_filter = {"report_id": allowed_list[0]}
     else:
         where_filter = {"report_id": {"$in": allowed_list}}
 
+    formatted_chunks: List[Dict[str, Any]] = []
+
     try:
-        query_results = collection.query(
-            query_texts=[query],
-            n_results=top_k,
-            where=where_filter,
-            include=["documents", "metadatas", "distances"],
-        )
+        if len(mentioned_reps) > 1:
+            # Query each mentioned entitled report to guarantee evidence from all target sources
+            for rep_id in mentioned_reps:
+                q_res = collection.query(
+                    query_texts=[query],
+                    n_results=max(3, top_k // len(mentioned_reps)),
+                    where={"report_id": rep_id},
+                    include=["documents", "metadatas", "distances"],
+                )
+                if q_res and q_res["documents"] and q_res["documents"][0]:
+                    docs = q_res["documents"][0]
+                    metas = q_res["metadatas"][0]
+                    distances = q_res["distances"][0] if q_res.get("distances") else []
+                    for idx, doc in enumerate(docs):
+                        meta = metas[idx]
+                        dist = distances[idx] if idx < len(distances) else None
+                        score = round(max(0.0, 1.0 - dist), 4) if dist is not None else 1.0
+                        formatted_chunks.append({
+                            "text": doc,
+                            "report_id": meta.get("report_id"),
+                            "title": meta.get("title"),
+                            "page": meta.get("page"),
+                            "source_location": meta.get("source_location"),
+                            "sector": meta.get("sector"),
+                            "region": meta.get("region"),
+                            "year": meta.get("year"),
+                            "relevance_score": score,
+                        })
+        else:
+            query_results = collection.query(
+                query_texts=[query],
+                n_results=top_k,
+                where=where_filter,
+                include=["documents", "metadatas", "distances"],
+            )
+            if query_results and query_results["documents"] and query_results["documents"][0]:
+                docs = query_results["documents"][0]
+                metas = query_results["metadatas"][0]
+                distances = query_results["distances"][0] if query_results.get("distances") else []
+                for idx, doc in enumerate(docs):
+                    meta = metas[idx]
+                    dist = distances[idx] if idx < len(distances) else None
+                    score = round(max(0.0, 1.0 - dist), 4) if dist is not None else 1.0
+                    formatted_chunks.append({
+                        "text": doc,
+                        "report_id": meta.get("report_id"),
+                        "title": meta.get("title"),
+                        "page": meta.get("page"),
+                        "source_location": meta.get("source_location"),
+                        "sector": meta.get("sector"),
+                        "region": meta.get("region"),
+                        "year": meta.get("year"),
+                        "relevance_score": score,
+                    })
     except Exception as exc:
         logger.error(f"ChromaDB retrieval error: {exc}")
         return {
@@ -129,31 +184,6 @@ def retrieve_entitled_chunks(
             "allowed_report_ids": allowed_list,
             "error": str(exc),
         }
-
-    formatted_chunks: List[Dict[str, Any]] = []
-
-    if query_results and query_results["documents"] and query_results["documents"][0]:
-        docs = query_results["documents"][0]
-        metas = query_results["metadatas"][0]
-        distances = query_results["distances"][0] if query_results.get("distances") else []
-
-        for idx, doc in enumerate(docs):
-            meta = metas[idx]
-            dist = distances[idx] if idx < len(distances) else None
-            # Normalized relevance score (1.0 - distance)
-            score = round(max(0.0, 1.0 - dist), 4) if dist is not None else 1.0
-
-            formatted_chunks.append({
-                "text": doc,
-                "report_id": meta.get("report_id"),
-                "title": meta.get("title"),
-                "page": meta.get("page"),
-                "source_location": meta.get("source_location"),
-                "sector": meta.get("sector"),
-                "region": meta.get("region"),
-                "year": meta.get("year"),
-                "relevance_score": score,
-            })
 
     return {
         "chunks": formatted_chunks,

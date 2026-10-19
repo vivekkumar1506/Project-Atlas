@@ -1,481 +1,560 @@
 <?php
 /**
- * Project Atlas - CodeIgniter 3 Core Engine Runtime
- * Implements the standard CI3 request lifecycle:
- * URI routing -> Controller dispatch -> CSRF verification -> Model/Library loading -> Output rendering.
+ * CodeIgniter
+ *
+ * An open source application development framework for PHP
+ *
+ * This content is released under the MIT License (MIT)
+ *
+ * Copyright (c) 2019 - 2022, CodeIgniter Foundation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * @package	CodeIgniter
+ * @author	EllisLab Dev Team
+ * @copyright	Copyright (c) 2008 - 2014, EllisLab, Inc. (https://ellislab.com/)
+ * @copyright	Copyright (c) 2014 - 2019, British Columbia Institute of Technology (https://bcit.ca/)
+ * @copyright	Copyright (c) 2019 - 2022, CodeIgniter Foundation (https://codeigniter.com/)
+ * @license	https://opensource.org/licenses/MIT	MIT License
+ * @link	https://codeigniter.com
+ * @since	Version 1.0.0
+ * @filesource
+ */
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+/**
+ * System Initialization File
+ *
+ * Loads the base classes and executes the request.
+ *
+ * @package		CodeIgniter
+ * @subpackage	CodeIgniter
+ * @category	Front-controller
+ * @author		EllisLab Dev Team
+ * @link		https://codeigniter.com/userguide3/
  */
 
-if (!defined('BASEPATH')) exit('No direct script access allowed');
+/**
+ * CodeIgniter Version
+ *
+ * @var	string
+ *
+ */
+	const CI_VERSION = '3.1.13';
 
-define('CI_VERSION', '3.1.13');
+/*
+ * ------------------------------------------------------
+ *  Load the framework constants
+ * ------------------------------------------------------
+ */
+	if (file_exists(APPPATH.'config/'.ENVIRONMENT.'/constants.php'))
+	{
+		require_once(APPPATH.'config/'.ENVIRONMENT.'/constants.php');
+	}
 
-// Global CI super-object instance container
-class CI_Base {
-    private static $instance;
+	if (file_exists(APPPATH.'config/constants.php'))
+	{
+		require_once(APPPATH.'config/constants.php');
+	}
 
-    public function __construct() {
-        self::$instance =& $this;
-    }
+/*
+ * ------------------------------------------------------
+ *  Load the global functions
+ * ------------------------------------------------------
+ */
+	require_once(BASEPATH.'core/Common.php');
 
-    public static function &get_instance() {
-        return self::$instance;
-    }
+
+/*
+ * ------------------------------------------------------
+ * Security procedures
+ * ------------------------------------------------------
+ */
+
+if ( ! is_php('5.4'))
+{
+	ini_set('magic_quotes_runtime', 0);
+
+	if ((bool) ini_get('register_globals'))
+	{
+		$_protected = array(
+			'_SERVER',
+			'_GET',
+			'_POST',
+			'_FILES',
+			'_REQUEST',
+			'_SESSION',
+			'_ENV',
+			'_COOKIE',
+			'GLOBALS',
+			'HTTP_RAW_POST_DATA',
+			'system_path',
+			'application_folder',
+			'view_folder',
+			'_protected',
+			'_registered'
+		);
+
+		$_registered = ini_get('variables_order');
+		foreach (array('E' => '_ENV', 'G' => '_GET', 'P' => '_POST', 'C' => '_COOKIE', 'S' => '_SERVER') as $key => $superglobal)
+		{
+			if (strpos($_registered, $key) === FALSE)
+			{
+				continue;
+			}
+
+			foreach (array_keys($$superglobal) as $var)
+			{
+				if (isset($GLOBALS[$var]) && ! in_array($var, $_protected, TRUE))
+				{
+					$GLOBALS[$var] = NULL;
+				}
+			}
+		}
+	}
 }
 
-function &get_instance() {
-    return CI_Base::get_instance();
-}
 
-function base_url($uri = '') {
-    $CI =& get_instance();
-    $base = $CI->config->item('base_url');
-    return rtrim($base, '/') . '/' . ltrim($uri, '/');
-}
+/*
+ * ------------------------------------------------------
+ *  Define a custom error handler so we can log PHP errors
+ * ------------------------------------------------------
+ */
+	set_error_handler('_error_handler');
+	set_exception_handler('_exception_handler');
+	register_shutdown_function('_shutdown_handler');
 
-function redirect($uri = '') {
-    header('Location: ' . base_url($uri));
-    exit;
-}
+/*
+ * ------------------------------------------------------
+ *  Set the subclass_prefix
+ * ------------------------------------------------------
+ *
+ * Normally the "subclass_prefix" is set in the config file.
+ * The subclass prefix allows CI to know if a core class is
+ * being extended via a library in the local application
+ * "libraries" folder. Since CI allows config items to be
+ * overridden via data set in the main index.php file,
+ * before proceeding we need to know if a subclass_prefix
+ * override exists. If so, we will set this value now,
+ * before any classes are loaded
+ * Note: Since the config file data is cached it doesn't
+ * hurt to load it here.
+ */
+	if ( ! empty($assign_to_config['subclass_prefix']))
+	{
+		get_config(array('subclass_prefix' => $assign_to_config['subclass_prefix']));
+	}
 
-function log_message($level, $message) {
-    error_log("[CI3-{$level}] " . $message);
-}
+/*
+ * ------------------------------------------------------
+ *  Should we use a Composer autoloader?
+ * ------------------------------------------------------
+ */
+	if ($composer_autoload = config_item('composer_autoload'))
+	{
+		if ($composer_autoload === TRUE)
+		{
+			file_exists(APPPATH.'vendor/autoload.php')
+				? require_once(APPPATH.'vendor/autoload.php')
+				: log_message('error', '$config[\'composer_autoload\'] is set to TRUE but '.APPPATH.'vendor/autoload.php was not found.');
+		}
+		elseif (file_exists($composer_autoload))
+		{
+			require_once($composer_autoload);
+		}
+		else
+		{
+			log_message('error', 'Could not find the specified $config[\'composer_autoload\'] path: '.$composer_autoload);
+		}
+	}
 
-// -----------------------------------------------------------------------------
-// Core Component: Config Loader
-// -----------------------------------------------------------------------------
-class CI_Config {
-    public $config = array();
+/*
+ * ------------------------------------------------------
+ *  Start the timer... tick tock tick tock...
+ * ------------------------------------------------------
+ */
+	$BM =& load_class('Benchmark', 'core');
+	$BM->mark('total_execution_time_start');
+	$BM->mark('loading_time:_base_classes_start');
 
-    public function __construct() {
-        if (file_exists(APPPATH . 'config/config.php')) {
-            require(APPPATH . 'config/config.php');
-            $this->config = $config;
-        }
-    }
+/*
+ * ------------------------------------------------------
+ *  Instantiate the hooks class
+ * ------------------------------------------------------
+ */
+	$EXT =& load_class('Hooks', 'core');
 
-    public function item($item) {
-        return isset($this->config[$item]) ? $this->config[$item] : NULL;
-    }
+/*
+ * ------------------------------------------------------
+ *  Is there a "pre_system" hook?
+ * ------------------------------------------------------
+ */
+	$EXT->call_hook('pre_system');
 
-    public function load($file) {
-        $path = APPPATH . 'config/' . $file . '.php';
-        if (file_exists($path)) {
-            require($path);
-            if (isset($config)) {
-                $this->config = array_merge($this->config, $config);
-            }
-        }
-    }
-}
+/*
+ * ------------------------------------------------------
+ *  Instantiate the config class
+ * ------------------------------------------------------
+ *
+ * Note: It is important that Config is loaded first as
+ * most other classes depend on it either directly or by
+ * depending on another class that uses it.
+ *
+ */
+	$CFG =& load_class('Config', 'core');
 
-// -----------------------------------------------------------------------------
-// Core Component: Input & CSRF Security
-// -----------------------------------------------------------------------------
-class CI_Input {
-    public function post($index = NULL, $xss_clean = FALSE) {
-        if ($index === NULL) return $_POST;
-        if (!isset($_POST[$index])) return NULL;
-        $val = $_POST[$index];
-        if ($xss_clean && is_string($val)) {
-            $val = htmlspecialchars($val, ENT_QUOTES, 'UTF-8');
-        }
-        return $val;
-    }
+	// Do we have any manually set config items in the index.php file?
+	if (isset($assign_to_config) && is_array($assign_to_config))
+	{
+		foreach ($assign_to_config as $key => $value)
+		{
+			$CFG->set_item($key, $value);
+		}
+	}
 
-    public function get($index = NULL) {
-        if ($index === NULL) return $_GET;
-        return isset($_GET[$index]) ? $_GET[$index] : NULL;
-    }
-}
+/*
+ * ------------------------------------------------------
+ * Important charset-related stuff
+ * ------------------------------------------------------
+ *
+ * Configure mbstring and/or iconv if they are enabled
+ * and set MB_ENABLED and ICONV_ENABLED constants, so
+ * that we don't repeatedly do extension_loaded() or
+ * function_exists() calls.
+ *
+ * Note: UTF-8 class depends on this. It used to be done
+ * in it's constructor, but it's _not_ class-specific.
+ *
+ */
+	$charset = strtoupper(config_item('charset'));
+	ini_set('default_charset', $charset);
 
-class CI_Security {
-    protected $csrf_token_name = 'atlas_csrf_token';
-    protected $csrf_hash;
+	if (extension_loaded('mbstring'))
+	{
+		define('MB_ENABLED', TRUE);
+		// mbstring.internal_encoding is deprecated starting with PHP 5.6
+		// and it's usage triggers E_DEPRECATED messages.
+		@ini_set('mbstring.internal_encoding', $charset);
+		// This is required for mb_convert_encoding() to strip invalid characters.
+		// That's utilized by CI_Utf8, but it's also done for consistency with iconv.
+		mb_substitute_character('none');
+	}
+	else
+	{
+		define('MB_ENABLED', FALSE);
+	}
 
-    public function __construct() {
-        if (session_status() === PHP_SESSION_NONE) {
-            @session_start();
-        }
-        if (!isset($_SESSION['atlas_csrf_hash'])) {
-            $_SESSION['atlas_csrf_hash'] = bin2hex(random_bytes(16));
-        }
-        $this->csrf_hash = $_SESSION['atlas_csrf_hash'];
-    }
+	// There's an ICONV_IMPL constant, but the PHP manual says that using
+	// iconv's predefined constants is "strongly discouraged".
+	if (extension_loaded('iconv'))
+	{
+		define('ICONV_ENABLED', TRUE);
+		// iconv.internal_encoding is deprecated starting with PHP 5.6
+		// and it's usage triggers E_DEPRECATED messages.
+		@ini_set('iconv.internal_encoding', $charset);
+	}
+	else
+	{
+		define('ICONV_ENABLED', FALSE);
+	}
 
-    public function get_csrf_token_name() {
-        return $this->csrf_token_name;
-    }
+	if (is_php('5.6'))
+	{
+		ini_set('php.internal_encoding', $charset);
+	}
 
-    public function get_csrf_hash() {
-        return $this->csrf_hash;
-    }
+/*
+ * ------------------------------------------------------
+ *  Load compatibility features
+ * ------------------------------------------------------
+ */
 
-    public function csrf_verify() {
-        if (strtoupper($_SERVER['REQUEST_METHOD']) === 'POST') {
-            $token = isset($_POST[$this->csrf_token_name]) ? $_POST[$this->csrf_token_name] : '';
-            if (empty($token) && isset($_SERVER['HTTP_X_CSRF_TOKEN'])) {
-                $token = $_SERVER['HTTP_X_CSRF_TOKEN'];
-            }
-            if (!hash_equals($this->csrf_hash, $token)) {
-                header('HTTP/1.1 403 Forbidden');
-                header('Content-Type: application/json');
-                echo json_encode(array(
-                    'status' => 'error',
-                    'message' => 'The action you have requested is not allowed. CSRF token validation failed.'
-                ));
-                exit;
-            }
-        }
-    }
-}
+	require_once(BASEPATH.'core/compat/mbstring.php');
+	require_once(BASEPATH.'core/compat/hash.php');
+	require_once(BASEPATH.'core/compat/password.php');
+	require_once(BASEPATH.'core/compat/standard.php');
 
-// -----------------------------------------------------------------------------
-// Core Component: Output Buffer
-// -----------------------------------------------------------------------------
-class CI_Output {
-    protected $headers = array();
-    protected $final_output = '';
+/*
+ * ------------------------------------------------------
+ *  Instantiate the UTF-8 class
+ * ------------------------------------------------------
+ */
+	$UNI =& load_class('Utf8', 'core');
 
-    public function set_content_type($mime_type) {
-        header('Content-Type: ' . $mime_type);
-        return $this;
-    }
+/*
+ * ------------------------------------------------------
+ *  Instantiate the URI class
+ * ------------------------------------------------------
+ */
+	$URI =& load_class('URI', 'core');
 
-    public function set_status_header($code = 200) {
-        http_response_code($code);
-        return $this;
-    }
-}
+/*
+ * ------------------------------------------------------
+ *  Instantiate the routing class and set the routing
+ * ------------------------------------------------------
+ */
+	$RTR =& load_class('Router', 'core', isset($routing) ? $routing : NULL);
 
-// -----------------------------------------------------------------------------
-// Core Component: Session Management
-// -----------------------------------------------------------------------------
-class CI_Session {
-    public function __construct() {
-        if (session_status() === PHP_SESSION_NONE) {
-            @session_start();
-        }
-    }
+/*
+ * ------------------------------------------------------
+ *  Instantiate the output class
+ * ------------------------------------------------------
+ */
+	$OUT =& load_class('Output', 'core');
 
-    public function userdata($item = NULL) {
-        if ($item === NULL) return $_SESSION;
-        return isset($_SESSION[$item]) ? $_SESSION[$item] : NULL;
-    }
+/*
+ * ------------------------------------------------------
+ *	Is there a valid cache file? If so, we're done...
+ * ------------------------------------------------------
+ */
+	if ($EXT->call_hook('cache_override') === FALSE && $OUT->_display_cache($CFG, $URI) === TRUE)
+	{
+		exit;
+	}
 
-    public function set_userdata($data, $value = NULL) {
-        if (is_array($data)) {
-            foreach ($data as $k => $v) {
-                $_SESSION[$k] = $v;
-            }
-        } else {
-            $_SESSION[$data] = $value;
-        }
-    }
+/*
+ * -----------------------------------------------------
+ * Load the security class for xss and csrf support
+ * -----------------------------------------------------
+ */
+	$SEC =& load_class('Security', 'core');
 
-    public function sess_destroy() {
-        $_SESSION = array();
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            @session_destroy();
-        }
-    }
-}
+/*
+ * ------------------------------------------------------
+ *  Load the Input class and sanitize globals
+ * ------------------------------------------------------
+ */
+	$IN	=& load_class('Input', 'core');
 
-// -----------------------------------------------------------------------------
-// Core Component: Database Layer (PDO / MySQLi wrapper)
-// -----------------------------------------------------------------------------
-class CI_DB_Result {
-    protected $rows;
+/*
+ * ------------------------------------------------------
+ *  Load the Language class
+ * ------------------------------------------------------
+ */
+	$LANG =& load_class('Lang', 'core');
 
-    public function __construct($rows) {
-        $this->rows = $rows ?: array();
-    }
+/*
+ * ------------------------------------------------------
+ *  Load the app controller and local controller
+ * ------------------------------------------------------
+ *
+ */
+	// Load the base controller class
+	require_once BASEPATH.'core/Controller.php';
 
-    public function num_rows() {
-        return count($this->rows);
-    }
+	/**
+	 * Reference to the CI_Controller method.
+	 *
+	 * Returns current CI instance object
+	 *
+	 * @return CI_Controller
+	 */
+	function &get_instance()
+	{
+		return CI_Controller::get_instance();
+	}
 
-    public function result_array() {
-        return $this->rows;
-    }
+	if (file_exists(APPPATH.'core/'.$CFG->config['subclass_prefix'].'Controller.php'))
+	{
+		require_once APPPATH.'core/'.$CFG->config['subclass_prefix'].'Controller.php';
+	}
 
-    public function row() {
-        return !empty($this->rows) ? (object)$this->rows[0] : NULL;
-    }
-}
+	// Set a mark point for benchmarking
+	$BM->mark('loading_time:_base_classes_end');
 
-class CI_DB {
-    protected $pdo;
+/*
+ * ------------------------------------------------------
+ *  Sanity checks
+ * ------------------------------------------------------
+ *
+ *  The Router class has already validated the request,
+ *  leaving us with 3 options here:
+ *
+ *	1) an empty class name, if we reached the default
+ *	   controller, but it didn't exist;
+ *	2) a query string which doesn't go through a
+ *	   file_exists() check
+ *	3) a regular request for a non-existing page
+ *
+ *  We handle all of these as a 404 error.
+ *
+ *  Furthermore, none of the methods in the app controller
+ *  or the loader class can be called via the URI, nor can
+ *  controller methods that begin with an underscore.
+ */
 
-    public function __construct() {
-        require(APPPATH . 'config/database.php');
-        $conf = $db['default'];
-        $dsn = "mysql:host={$conf['hostname']};port={$conf['port']};dbname={$conf['database']};charset=utf8mb4";
-        try {
-            $this->pdo = new PDO($dsn, $conf['username'], $conf['password'], array(
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-            ));
-        } catch (Exception $e) {
-            log_message('error', 'MySQL connection failure: ' . $e->getMessage());
-        }
-    }
+	$e404 = FALSE;
+	$class = ucfirst($RTR->class);
+	$method = $RTR->method;
 
-    public function get_where($table, $where = array(), $limit = NULL) {
-        $sql = "SELECT * FROM `{$table}`";
-        $params = array();
-        if (!empty($where)) {
-            $clauses = array();
-            foreach ($where as $k => $v) {
-                $clauses[] = "`{$k}` = :{$k}";
-                $params[":{$k}"] = $v;
-            }
-            $sql .= " WHERE " . implode(" AND ", $clauses);
-        }
-        if ($limit) {
-            $sql .= " LIMIT " . (int)$limit;
-        }
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-        return new CI_DB_Result($stmt->fetchAll());
-    }
+	if (empty($class) OR ! file_exists(APPPATH.'controllers/'.$RTR->directory.$class.'.php'))
+	{
+		$e404 = TRUE;
+	}
+	else
+	{
+		require_once(APPPATH.'controllers/'.$RTR->directory.$class.'.php');
 
-    public function insert($table, $data) {
-        $keys = array_keys($data);
-        $fields = '`' . implode('`, `', $keys) . '`';
-        $placeholders = ':' . implode(', :', $keys);
-        $sql = "INSERT INTO `{$table}` ({$fields}) VALUES ({$placeholders})";
-        $stmt = $this->pdo->prepare($sql);
-        $params = array();
-        foreach ($data as $k => $v) {
-            $params[":{$k}"] = $v;
-        }
-        return $stmt->execute($params);
-    }
+		if ( ! class_exists($class, FALSE) OR $method[0] === '_' OR method_exists('CI_Controller', $method))
+		{
+			$e404 = TRUE;
+		}
+		elseif (method_exists($class, '_remap'))
+		{
+			$params = array($method, array_slice($URI->rsegments, 2));
+			$method = '_remap';
+		}
+		elseif ( ! method_exists($class, $method))
+		{
+			$e404 = TRUE;
+		}
+		/**
+		 * DO NOT CHANGE THIS, NOTHING ELSE WORKS!
+		 *
+		 * - method_exists() returns true for non-public methods, which passes the previous elseif
+		 * - is_callable() returns false for PHP 4-style constructors, even if there's a __construct()
+		 * - method_exists($class, '__construct') won't work because CI_Controller::__construct() is inherited
+		 * - People will only complain if this doesn't work, even though it is documented that it shouldn't.
+		 *
+		 * ReflectionMethod::isConstructor() is the ONLY reliable check,
+		 * knowing which method will be executed as a constructor.
+		 */
+		else
+		{
+			$reflection = new ReflectionMethod($class, $method);
+			if ( ! $reflection->isPublic() OR $reflection->isConstructor())
+			{
+				$e404 = TRUE;
+			}
+		}
+	}
 
-    // Query Builder chaining support
-    protected $builder_select = '*';
-    protected $builder_from = '';
-    protected $builder_joins = array();
-    protected $builder_wheres = array();
-    protected $builder_params = array();
-    protected $builder_order = '';
-    protected $builder_limit = '';
+	if ($e404)
+	{
+		if ( ! empty($RTR->routes['404_override']))
+		{
+			if (sscanf($RTR->routes['404_override'], '%[^/]/%s', $error_class, $error_method) !== 2)
+			{
+				$error_method = 'index';
+			}
 
-    public function select($select) {
-        $this->builder_select = $select;
-        return $this;
-    }
+			$error_class = ucfirst($error_class);
 
-    public function from($from) {
-        $this->builder_from = $from;
-        return $this;
-    }
+			if ( ! class_exists($error_class, FALSE))
+			{
+				if (file_exists(APPPATH.'controllers/'.$RTR->directory.$error_class.'.php'))
+				{
+					require_once(APPPATH.'controllers/'.$RTR->directory.$error_class.'.php');
+					$e404 = ! class_exists($error_class, FALSE);
+				}
+				// Were we in a directory? If so, check for a global override
+				elseif ( ! empty($RTR->directory) && file_exists(APPPATH.'controllers/'.$error_class.'.php'))
+				{
+					require_once(APPPATH.'controllers/'.$error_class.'.php');
+					if (($e404 = ! class_exists($error_class, FALSE)) === FALSE)
+					{
+						$RTR->directory = '';
+					}
+				}
+			}
+			else
+			{
+				$e404 = FALSE;
+			}
+		}
 
-    public function join($table, $cond) {
-        $this->builder_joins[] = "JOIN {$table} ON {$cond}";
-        return $this;
-    }
+		// Did we reset the $e404 flag? If so, set the rsegments, starting from index 1
+		if ( ! $e404)
+		{
+			$class = $error_class;
+			$method = $error_method;
 
-    public function where($field, $val) {
-        $paramName = ':p_' . count($this->builder_params);
-        $this->builder_wheres[] = "{$field} = {$paramName}";
-        $this->builder_params[$paramName] = $val;
-        return $this;
-    }
+			$URI->rsegments = array(
+				1 => $class,
+				2 => $method
+			);
+		}
+		else
+		{
+			show_404($RTR->directory.$class.'/'.$method);
+		}
+	}
 
-    public function order_by($col, $dir = 'ASC') {
-        $this->builder_order = "ORDER BY {$col} {$dir}";
-        return $this;
-    }
+	if ($method !== '_remap')
+	{
+		$params = array_slice($URI->rsegments, 2);
+	}
 
-    public function limit($limit) {
-        $this->builder_limit = "LIMIT " . (int)$limit;
-        return $this;
-    }
+/*
+ * ------------------------------------------------------
+ *  Is there a "pre_controller" hook?
+ * ------------------------------------------------------
+ */
+	$EXT->call_hook('pre_controller');
 
-    public function get() {
-        $sql = "SELECT {$this->builder_select} FROM {$this->builder_from}";
-        if (!empty($this->builder_joins)) {
-            $sql .= ' ' . implode(' ', $this->builder_joins);
-        }
-        if (!empty($this->builder_wheres)) {
-            $sql .= ' WHERE ' . implode(' AND ', $this->builder_wheres);
-        }
-        if (!empty($this->builder_order)) {
-            $sql .= ' ' . $this->builder_order;
-        }
-        if (!empty($this->builder_limit)) {
-            $sql .= ' ' . $this->builder_limit;
-        }
+/*
+ * ------------------------------------------------------
+ *  Instantiate the requested controller
+ * ------------------------------------------------------
+ */
+	// Mark a start point so we can benchmark the controller
+	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_start');
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($this->builder_params);
+	$CI = new $class();
 
-        // Reset builder state
-        $this->builder_select = '*';
-        $this->builder_from = '';
-        $this->builder_joins = array();
-        $this->builder_wheres = array();
-        $this->builder_params = array();
-        $this->builder_order = '';
-        $this->builder_limit = '';
+/*
+ * ------------------------------------------------------
+ *  Is there a "post_controller_constructor" hook?
+ * ------------------------------------------------------
+ */
+	$EXT->call_hook('post_controller_constructor');
 
-        return new CI_DB_Result($stmt->fetchAll());
-    }
+/*
+ * ------------------------------------------------------
+ *  Call the requested method
+ * ------------------------------------------------------
+ */
+	call_user_func_array(array(&$CI, $method), $params);
 
-    public function update($table, $data) {
-        $sets = array();
-        $params = array();
-        foreach ($data as $k => $v) {
-            $sets[] = "`{$k}` = :set_{$k}";
-            $params[":set_{$k}"] = $v;
-        }
-        $sql = "UPDATE `{$table}` SET " . implode(', ', $sets);
-        if (!empty($this->builder_wheres)) {
-            $sql .= ' WHERE ' . implode(' AND ', $this->builder_wheres);
-            $params = array_merge($params, $this->builder_params);
-        }
-        $stmt = $this->pdo->prepare($sql);
-        $res = $stmt->execute($params);
+	// Mark a benchmark end point
+	$BM->mark('controller_execution_time_( '.$class.' / '.$method.' )_end');
 
-        $this->builder_wheres = array();
-        $this->builder_params = array();
-        return $res;
-    }
-}
+/*
+ * ------------------------------------------------------
+ *  Is there a "post_controller" hook?
+ * ------------------------------------------------------
+ */
+	$EXT->call_hook('post_controller');
 
-// -----------------------------------------------------------------------------
-// Core Component: Loader
-// -----------------------------------------------------------------------------
-class CI_Loader {
-    public function library($library) {
-        $CI =& get_instance();
-        $libName = basename($library);
-        $propName = strtolower($libName);
-        if ($propName === 'session') {
-            $CI->session = new CI_Session();
-            return;
-        }
-        $path = APPPATH . 'libraries/' . $libName . '.php';
-        if (file_exists($path)) {
-            require_once($path);
-            $CI->$propName = new $libName();
-        }
-    }
+/*
+ * ------------------------------------------------------
+ *  Send the final rendered output to the browser
+ * ------------------------------------------------------
+ */
+	if ($EXT->call_hook('display_override') === FALSE)
+	{
+		$OUT->_display();
+	}
 
-    public function model($model) {
-        $CI =& get_instance();
-        $modelName = basename($model);
-        $propName = $modelName;
-        $path = APPPATH . 'models/' . $modelName . '.php';
-        if (file_exists($path)) {
-            require_once($path);
-            $CI->$propName = new $modelName();
-        }
-    }
-
-    public function view($view, $vars = array(), $return = FALSE) {
-        extract($vars);
-        $path = APPPATH . 'views/' . $view . '.php';
-        if ($return) {
-            ob_start();
-            require($path);
-            return ob_get_clean();
-        }
-        require($path);
-    }
-
-    public function helper($helper) {
-        // Helpers like url or security
-    }
-
-    public function database() {
-        $CI =& get_instance();
-        if (!isset($CI->db)) {
-            $CI->db = new CI_DB();
-        }
-    }
-
-    public function config($item) {
-        $CI =& get_instance();
-        $CI->config->load($item);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Base Controller & Model
-// -----------------------------------------------------------------------------
-class CI_Controller extends CI_Base {
-    public $load;
-    public $config;
-    public $input;
-    public $output;
-    public $security;
-    public $session;
-    public $db;
-
-    public function __construct() {
-        parent::__construct();
-        $this->config   = new CI_Config();
-        $this->load     = new CI_Loader();
-        $this->input    = new CI_Input();
-        $this->output   = new CI_Output();
-        $this->security = new CI_Security();
-        $this->session  = new CI_Session();
-
-        // Enforce CSRF verification for state-changing browser requests
-        if ($this->config->item('csrf_protection')) {
-            $this->security->csrf_verify();
-        }
-    }
-}
-
-class CI_Model {
-    public $db;
-    public $load;
-
-    public function __construct() {
-        $CI =& get_instance();
-        $this->load =& $CI->load;
-        $this->db   =& $CI->db;
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Front Controller Request Dispatcher
-// -----------------------------------------------------------------------------
-function ci_dispatch() {
-    $uri = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/');
-    // Strip query string and script name
-    $uri = strtok($uri, '?');
-    $uri = preg_replace('#^/index\.php/?#i', '/', $uri);
-    $segments = array_values(array_filter(explode('/', trim($uri, '/'))));
-
-    $controller = !empty($segments[0]) ? ucfirst(strtolower($segments[0])) : 'Chat';
-    $method = !empty($segments[1]) ? strtolower($segments[1]) : 'index';
-    $params = array_slice($segments, 2);
-
-    $file = APPPATH . 'controllers/' . $controller . '.php';
-    if (!file_exists($file)) {
-        header('HTTP/1.1 404 Not Found');
-        echo "404 Not Found: Controller {$controller} does not exist.";
-        exit;
-    }
-
-    require_once($file);
-    if (!class_exists($controller)) {
-        header('HTTP/1.1 404 Not Found');
-        echo "404 Not Found: Class {$controller} not defined.";
-        exit;
-    }
-
-    $instance = new $controller();
-    if (!method_exists($instance, $method)) {
-        header('HTTP/1.1 404 Not Found');
-        echo "404 Not Found: Action {$method} not found in {$controller}.";
-        exit;
-    }
-
-    call_user_func_array(array($instance, $method), $params);
-}
+/*
+ * ------------------------------------------------------
+ *  Is there a "post_system" hook?
+ * ------------------------------------------------------
+ */
+	$EXT->call_hook('post_system');

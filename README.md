@@ -1,6 +1,6 @@
 # Project Atlas — Enterprise AI Market Research Report Copilot
 
-[![Tests](https://img.shields.io/badge/Pytest%20Suite-22%2F22%20Passed-10b981?style=flat-square&logo=pytest)](file:///backend/tests)
+[![Tests](https://img.shields.io/badge/Pytest%20Suite-32%2F32%20Passed-10b981?style=flat-square&logo=pytest)](file:///backend/tests)
 [![Benchmark Evaluation](https://img.shields.io/badge/AI%20Evaluation-25%2F25%20(100%25)-3b82f6?style=flat-square)](file:///evaluation/eval_runner.py)
 [![Docker](https://img.shields.io/badge/Docker%20Compose-Linux%20%7C%20Windows-06b6d4?style=flat-square&logo=docker)](file:///docker-compose.yml)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20Python%203.11-009688?style=flat-square&logo=fastapi)](file:///backend)
@@ -57,8 +57,37 @@ flowchart TD
 ### Architectural Tiers:
 1. **Presentation Tier (PHP CodeIgniter 3):** Handles user session authentication, CSRF tokens, XSS neutralization, dynamic client switching (`C-01`, `C-02`, `C-03`), and real-time interaction with feedback logging.
 2. **AI & API Gateway Tier (FastAPI):** Enforces bearer key security, intent classification, guardrails against adversarial prompt injections, and orchestration across retrieval, math, and database tools.
-3. **Semantic Retrieval Tier (ChromaDB):** Indexes paginated markdown chunks across all 6 syndicated reports. Restricts search candidate spaces via pre-retrieval metadata filters.
+3. **Semantic Retrieval Tier (ChromaDB + ONNX):** Indexes paginated markdown chunks across all 6 syndicated reports using `all-MiniLM-L6-v2` (384-dimensional dense semantic vectors). Restricts candidate spaces via pre-retrieval metadata filters.
 4. **Relational & Persistence Tier (MySQL 8.0):** Manages ACID-compliant client records, active subscription entitlements, conversation audit histories, message feedback ratings, and analyst escalation tickets.
+
+---
+
+## 🧠 Semantic RAG Pipeline & Citation Validation
+
+Project Atlas avoids benchmark shortcuts and canned lookup tables for regular inquiries. Answers are synthesized dynamically from real retrieved evidence:
+
+```mermaid
+flowchart LR
+    Query["User Question"] --> Filter["Entitlement Pre-Filter<br/>(MySQL)"]
+    Filter --> Embed["ONNX Semantic Embedder<br/>(all-MiniLM-L6-v2 / 384 dim)"]
+    Embed --> VectorStore[("ChromaDB Vector Store<br/>27 Paginated Chunks")]
+    VectorStore --> Chunks["Retrieved Evidence Chunks"]
+    Chunks --> Guardrail{"Topic Grounding &<br/>Preamble Filter"}
+    Guardrail -->|Grounding Failed| Ticket["🚨 Auto-Escalation Ticket"]
+    Guardrail -->|Evidence Verified| Synth["Dynamic Answer Synthesizer"]
+    Synth --> CitValidator["Citation Validator<br/>(Entitlement + Report + Page Match)"]
+    CitValidator --> Response["Verified Response with Citations"]
+```
+
+### Key RAG Engineering Highlights:
+- **Semantic Embedding Model (`all-MiniLM-L6-v2` via ONNX Runtime):** Uses a 384-dimensional dense semantic embedding model cached locally. Captures conceptual semantics (e.g. mapping "membrane bio-reactors" to industrial wastewater treatment) without sending data to external APIs.
+- **Evidence-Grounded Dynamic Synthesis:** Standard inquiries are answered directly from substantive retrieved text chunks (`cleaned_chunks`) rather than pre-canned answers.
+- **Preamble Header Filtering:** Strips administrative document preambles (`**Publisher:**`, `**Access Policy:**`) so that narrative market data, CAGRs, regional shares, and technology segmentations take priority.
+- **Topic Grounding Guardrail:** Inspects retrieved chunks for substantive topic overlap. Irrelevant queries (e.g. "underwater quantum computers") that produce superficial similarity scores fail topic grounding and cleanly trigger human analyst tickets instead of hallucinating.
+- **Zero-Trust Citation Verification:** In `critic.py`, every citation (`Report ID`, `Page X`) is validated against:
+  1. The client's active report entitlements.
+  2. The actual retrieved chunks returned by ChromaDB for that query. Unsubstantiated citations are purged.
+- **Unscripted & Novel Question Robustness:** Tested against unseen, unscripted questions across all reports (technology breakdowns, regional percentages, country market shares) with a 100% pass rate.
 
 ---
 
@@ -235,7 +264,39 @@ backend\.venv\Scripts\python.exe scripts/verify_phase2.py  # Phase 2: Ingestion 
 backend\.venv\Scripts\python.exe scripts/verify_phase3.py  # Phase 3: Acceptance Tests AT-01 to AT-07
 backend\.venv\Scripts\python.exe scripts/verify_phase4.py  # Phase 4: CI3 Portal Integration & Security
 backend\.venv\Scripts\python.exe scripts/verify_phase5.py  # Phase 5: Complete AI Evaluation & Deployment
+
+# 4. Run Unscripted Novel RAG Evaluation (Evidence grounding & citation matching on unseen queries)
+backend\.venv\Scripts\python.exe scripts/verify_novel_rag_questions.py
+
+# 5. Run Live CodeIgniter 3 Portal HTTP End-to-End Test (Browser -> CI3 -> FastAPI -> Response)
+backend\.venv\Scripts\python.exe scripts/test_live_portal.py
+
+# 6. Run Direct Portal Auth & CSRF Tampering Security Verification
+backend\.venv\Scripts\python.exe scripts/test_portal_auth.py
 ```
+
+---
+
+## 🏛️ Genuine CodeIgniter 3 Integration Specification
+
+The portal utilizes the **official CodeIgniter 3.1.13 framework runtime** located in `portal/system/`:
+
+1. **Bootstrap & Lifecycle**:
+   - Front controller `portal/index.php` initializes `BASEPATH` (`system/`), `APPPATH` (`application/`), environment error reporting (`E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_USER_DEPRECATED`), and bootstraps `system/core/CodeIgniter.php`.
+   - Core framework classes: `CI_Router`, `CI_URI`, `CI_Security`, `CI_Input`, `CI_Output`, `CI_Session`, and `CI_DB_mysqli_driver`.
+2. **Controller (`portal/application/controllers/Chat.php`)**:
+   - Manages chat rendering (`index()`), asynchronous validated chat submissions (`ask()`), feedback recording (`feedback()`), and escalations.
+   - Enforces session-derived identity (`$this->session->userdata('client_id')`). Never trusts client IDs from untrusted request bodies.
+3. **API Library (`portal/application/libraries/Atlas_api.php`)**:
+   - Executes server-side cURL requests to FastAPI (`http://127.0.0.1:8000/chat`) with server-side `X-API-Key`.
+   - Implements strict connection timeouts (5s connect, 28s total) and graceful fallback handling on backend timeout or outage (AT-08).
+4. **Security & CSRF Protection**:
+   - Native CI3 CSRF protection enabled in `config.php` (`$config['csrf_protection'] = TRUE;`).
+   - Every POST request verifies both the CSRF token and session cookie.
+   - All user inputs and AI outputs are escaped with `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')` to prevent Cross-Site Scripting (XSS).
+5. **Database Interaction (`portal/application/models/Chat_model.php`)**:
+   - Uses CodeIgniter 3 Query Builder (`$this->db->select()`, `$this->db->get_where()`, `$this->db->insert()`) for SQL injection defense and conversation isolation.
+   - Enforces IDOR protection: client `C-02` can never query or modify conversations owned by `C-01`.
 
 ---
 
@@ -256,16 +317,23 @@ Project Atlas/
 │   ├── tests/                     # 22 automated Pytest unit tests
 │   ├── Dockerfile                 # Production backend container definition
 │   └── requirements.txt           # Python dependencies (pinned)
-├── portal/                        # Web Interface (PHP 8.1 / CodeIgniter 3)
+├── portal/                        # Web Interface (Genuine CodeIgniter 3.1.13 / PHP 8.1+)
 │   ├── application/
+│   │   ├── config/                # config.php, database.php, routes.php, atlas.php, autoload.php, constants.php
 │   │   ├── controllers/           # Chat.php & Auth.php
-│   │   ├── models/                # Chat_model.php (Client history, escalations & catalog)
-│   │   ├── libraries/             # Atlas_api.php (cURL REST client with timeouts)
-│   │   └── views/                 # chat_view.php (Clean, responsive enterprise UI)
+│   │   ├── models/                # Chat_model.php (Client history, feedback, escalations & catalog)
+│   │   ├── libraries/             # Atlas_api.php (cURL REST client with timeouts & fallback handling)
+│   │   └── views/                 # chat_view.php (Clean, responsive enterprise UI with CSRF protection)
+│   ├── system/                    # Official CodeIgniter 3.1.13 Framework Core
+│   │   ├── core/                  # CodeIgniter.php, Controller.php, Router.php, Security.php, Input.php, Output.php
+│   │   ├── database/              # Query Builder & MySQLi Driver
+│   │   ├── helpers/               # url, security, file helpers
+│   │   └── libraries/             # Session, Encryption, Form_validation
 │   ├── assets/                    # CSS, JS, and typography assets
 │   ├── .htaccess                  # Apache mod_rewrite configuration
 │   ├── router.php                 # PHP built-in server router
-│   └── Dockerfile                 # Production portal container definition
+│   ├── index.php                  # Official CodeIgniter 3 front controller
+│   └── Dockerfile                 # Production portal container definition (PHP 8.2-Apache)
 ├── database/
 │   └── schema.sql                 # MySQL relational schema (13 tables, baseline data)
 ├── reports/                       # 6 Syndicated Market Reports (Markdown with metadata)
@@ -274,6 +342,12 @@ Project Atlas/
 │   ├── eval_runner.py             # Evaluation runner and reporting engine
 │   └── evaluation_report.md       # Benchmark scorecard & root cause failure analysis
 ├── scripts/                       # Phase 1–5 automated verification scripts
+│   ├── test_live_portal.py        # Live HTTP end-to-end portal verification
+│   ├── verify_phase1.py           # Phase 1: Foundation & MySQL latency
+│   ├── verify_phase2.py           # Phase 2: Ingestion & entitlement-aware RAG
+│   ├── verify_phase3.py           # Phase 3: Acceptance tests AT-01 to AT-07
+│   ├── verify_phase4.py           # Phase 4: CI3 Portal integration & security
+│   └── verify_phase5.py           # Phase 5: Complete AI evaluation & packaging
 ├── docker-compose.yml             # Complete multi-container deployment orchestration
 ├── start.bat                      # Windows one-click prototype launcher
 ├── stop.bat                       # Windows service termination script

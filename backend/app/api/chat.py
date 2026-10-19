@@ -1,7 +1,7 @@
 """Chat and Escalation API endpoints for Project Atlas."""
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -27,9 +27,29 @@ logger = logging.getLogger("atlas.api.chat")
 def chat_endpoint(
     request: ChatRequest,
     db: Session = Depends(get_db),
+    api_key: str = Depends(verify_api_key),
 ) -> ChatResponse:
     """Submit a question to the Report Copilot."""
-    logger.info(f"Received chat request from client '{request.client_id}': '{request.question[:60]}...'")
+    # Validate client identity against registered client records
+    client_row = db.execute(
+        text("SELECT client_id, status FROM clients WHERE client_id = :cid"),
+        {"cid": request.client_id},
+    ).fetchone()
+
+    if not client_row:
+        logger.warning(f"Rejected chat request: Unknown client identity '{request.client_id}'")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Client identity '{request.client_id}' is not recognized or authenticated.",
+        )
+    if client_row[1] != "active":
+        logger.warning(f"Rejected chat request: Inactive client account '{request.client_id}' (status={client_row[1]})")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Client '{request.client_id}' account is {client_row[1]}.",
+        )
+
+    logger.info(f"Received authenticated chat request from client '{request.client_id}': '{request.question[:60]}...'")
     return run_agent_workflow(request=request, db=db)
 
 

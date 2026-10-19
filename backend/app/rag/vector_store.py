@@ -86,9 +86,21 @@ def get_chroma_client() -> chromadb.ClientAPI:
     return _chroma_client
 
 
+_semantic_ef: Optional[EmbeddingFunction[Documents]] = None
+
+
 def get_embedding_function() -> EmbeddingFunction[Documents]:
-    """Return fast deterministic offline embedding function (384 dimensions)."""
-    return LightweightDenseEmbeddingFunction(dimension=EMBEDDING_DIM)
+    """Return semantic transformer embedding function (all-MiniLM-L6-v2 via ONNX, 384 dim)."""
+    global _semantic_ef
+    if _semantic_ef is None:
+        try:
+            from chromadb.utils.embedding_functions import ONNXMiniLM_L6_V2
+            _semantic_ef = ONNXMiniLM_L6_V2()
+            logger.info("Using ONNX all-MiniLM-L6-v2 semantic embedding model for vector store.")
+        except Exception as exc:
+            logger.warning(f"Could not initialize ONNXMiniLM_L6_V2 ({exc}). Using lightweight dense fallback.")
+            _semantic_ef = LightweightDenseEmbeddingFunction(dimension=EMBEDDING_DIM)
+    return _semantic_ef
 
 
 def get_reports_collection():

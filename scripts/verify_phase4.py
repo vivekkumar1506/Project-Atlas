@@ -49,7 +49,7 @@ def run_phase4_verification():
 
     # Step 2: Test Chat Interaction via Portal Controller Contract
     print("\n[2/6] Testing Chat Interaction via Portal Server-Side Call...")
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-API-Key": settings.api_key}) as client:
         r = client.post(
             "/chat",
             json={
@@ -64,7 +64,7 @@ def run_phase4_verification():
 
     # Step 3: Test Input Validation
     print("\n[3/6] Testing Input Validation (Empty & Oversized Rejections)...")
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-API-Key": settings.api_key}) as client:
         r_empty = client.post("/chat", json={"client_id": "C-01", "question": ""})
         assert r_empty.status_code == 422
         print("  - Empty question rejected [OK]")
@@ -122,7 +122,7 @@ def run_phase4_verification():
 
     # Step 6: Test XSS Sanitization & Fallback
     print("\n[6/6] Testing XSS Sanitization & Security...")
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-API-Key": settings.api_key}) as client:
         xss_resp = client.post("/chat", json={"client_id": "C-01", "question": "Check security <script>alert(1)</script>"})
         assert xss_resp.status_code == 200
         assert "<script>alert(1)</script>" not in xss_resp.json()["answer"]

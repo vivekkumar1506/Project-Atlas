@@ -33,7 +33,7 @@ def run_phase3_verification():
     print("=" * 65)
     settings = get_settings()
 
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-API-Key": settings.api_key}) as client:
         # Scenario 1: AT-01 Conflicting Figures
         print("\n[1/8] Testing AT-01: Conflicting Figures (R-101 vs R-102)...")
         r1 = client.post("/chat", json={"client_id": "C-01", "question": "What was the global smart water meter market size in 2024?"})

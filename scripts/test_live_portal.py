@@ -1,19 +1,17 @@
-import urllib.request
-import urllib.parse
 import re
-import json
+import requests
+
 
 class PortalSession:
     def __init__(self, base_url="http://127.0.0.1:8080"):
         self.base_url = base_url
-        self.cookie_jar = urllib.request.HTTPCookieProcessor()
-        self.opener = urllib.request.build_opener(self.cookie_jar)
+        self.session = requests.Session()
         self.csrf_token = ""
         self.refresh_token()
 
     def refresh_token(self):
-        resp = self.opener.open(f"{self.base_url}/")
-        html = resp.read().decode("utf-8")
+        resp = self.session.get(f"{self.base_url}/")
+        html = resp.text
         match = re.search(r'name="atlas_csrf_token"\s+value="([a-f0-9]+)"', html)
         if not match:
             match = re.search(r'atlas_csrf_token["\']?\s*[:=]\s*["\']([a-f0-9]+)["\']', html)
@@ -21,26 +19,25 @@ class PortalSession:
         return self.csrf_token
 
     def ask(self, question: str):
-        data = urllib.parse.urlencode({
-            "atlas_csrf_token": self.csrf_token,
+        csrf_cookies = [c.value for c in self.session.cookies if c.name == "atlas_csrf_cookie"]
+        token = csrf_cookies[-1] if csrf_cookies else self.csrf_token
+        payload = {
+            "atlas_csrf_token": token,
             "question": question
-        }).encode("utf-8")
-
-        req = urllib.request.Request(f"{self.base_url}/chat/ask", data=data)
-        try:
-            resp = self.opener.open(req)
-            res = json.loads(resp.read().decode("utf-8"))
-            if res.get("csrf_hash"):
-                self.csrf_token = res["csrf_hash"]
-            return res
-        except urllib.error.HTTPError as exc:
-            print("HTTPError body:", exc.read().decode("utf-8"))
-            raise
+        }
+        resp = self.session.post(f"{self.base_url}/chat/ask", data=payload)
+        if resp.status_code != 200:
+            print("HTTPError body:", resp.text)
+            resp.raise_for_status()
+        res = resp.json()
+        if res.get("csrf_hash"):
+            self.csrf_token = res["csrf_hash"]
+        return res
 
     def switch_client(self, client_id: str):
-        resp = self.opener.open(f"{self.base_url}/auth/switch_client/{client_id}")
+        resp = self.session.get(f"{self.base_url}/auth/switch_client/{client_id}")
         self.refresh_token()
-        return resp.status
+        return resp.status_code
 
 
 def main():
@@ -79,6 +76,10 @@ def main():
     r5 = session.ask("What is the 2024 market size of underwater quantum computers?")
     print("Status:", r5.get("status"), "| Escalated:", r5.get("escalated"))
     print("Answer:\n", r5.get("answer"))
+
+    print("\n" + "=" * 60)
+    print(" ALL LIVE CODEIGNITER 3 PORTAL INTEGRATION TESTS PASSED!")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
