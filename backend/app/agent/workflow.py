@@ -120,6 +120,12 @@ def run_agent_workflow(
                     "(DELETE, DROP, UPDATE, INSERT, ALTER) are strictly prohibited. The database has "
                     "not been modified."
                 )
+            elif "client_data_isolation" in sub_reason:
+                answer = (
+                    "Security policy violation: Strict multi-tenant client data isolation prohibits viewing "
+                    "another client's licensed reports, subscriptions, purchase history, or account records. "
+                    "Each client's commercial entitlements and intelligence library are strictly confidential and isolated."
+                )
             else:
                 answer = (
                     "Security policy violation: Requests to disclose confidential client records, contact "
@@ -326,6 +332,25 @@ def run_agent_workflow(
         # ----------------------------------------------------------------------
         # 1. APAC 2030 Projection (AT-02, Q-09)
         if "apac" in q_lower and "2030" in question:
+            if "R-101" not in allowed_report_ids:
+                answer = (
+                    f"Access Restricted: Client '{client_id}' does not possess an active entitlement for report "
+                    "**R-101** (*Global Smart Water Meter Market 2025*). The APAC 2030 smart water meter market sizing and "
+                    "growth projections are proprietary to report R-101. As per enterprise client data isolation policy, "
+                    "unpurchased figures cannot be calculated or displayed. Please contact your account manager to upgrade your subscription."
+                )
+                return _save_and_build_response(
+                    db=db,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    client_id=client_id,
+                    question=question,
+                    answer=answer,
+                    citations=[],
+                    confidence=1.0,
+                    escalated=False,
+                )
+
             base_global = 4.21
             apac_share = 0.38
             apac_base_2024 = round(base_global * apac_share, 4)  # 1.5998
@@ -382,6 +407,24 @@ def run_agent_workflow(
 
         # 2. R-105 Smart Grid Sensors CAGR calculation (Q-10)
         if ("sensor" in q_lower or "smart grid" in q_lower or "r-105" in q_lower) and ("cagr" in q_lower or "calculate" in q_lower or "growth rate" in q_lower):
+            if "R-105" not in allowed_report_ids:
+                answer = (
+                    f"Access Restricted: Client '{client_id}' does not possess an active entitlement for report "
+                    "**R-105** (*North America Smart Grid Sensors Market 2024*). Compound annual growth rate (CAGR) calculations "
+                    "and baseline valuations from R-105 are proprietary to licensed subscribers. Please contact your account manager to upgrade."
+                )
+                return _save_and_build_response(
+                    db=db,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    client_id=client_id,
+                    question=question,
+                    answer=answer,
+                    citations=[],
+                    confidence=1.0,
+                    escalated=False,
+                )
+
             cagr_calc = calculate_cagr(
                 beginning_value=2.15,
                 ending_value=4.32,
@@ -430,6 +473,23 @@ def run_agent_workflow(
 
         # 3. R-104 Commercial Heat Pumps projection (Q-11: 2028, or 2030)
         if ("heat pump" in q_lower or "r-104" in q_lower) and ("14.1" in question or "projected" in q_lower or "cagr" in q_lower or "2028" in question or "2030" in question):
+            if "R-104" not in allowed_report_ids:
+                answer = (
+                    f"Access Restricted: Client '{client_id}' does not possess an active entitlement for report "
+                    "**R-104** (*European Commercial Heat Pump Market 2024*). Commercial heat pump projections and "
+                    "growth estimates are proprietary to report R-104. Please upgrade your subscription to unlock full access."
+                )
+                return _save_and_build_response(
+                    db=db,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    client_id=client_id,
+                    question=question,
+                    answer=answer,
+                    citations=[],
+                    confidence=1.0,
+                    escalated=False,
+                )
             target_year = 2028 if "2028" in question else 2030
             num_years = target_year - 2024
             proj_calc = calculate_projection(

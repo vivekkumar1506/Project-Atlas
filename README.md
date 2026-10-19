@@ -1,6 +1,6 @@
 # Project Atlas — Enterprise AI Market Research Report Copilot
 
-[![Tests](https://img.shields.io/badge/Pytest%20Suite-32%2F32%20Passed-10b981?style=flat-square&logo=pytest)](file:///backend/tests)
+[![Tests](https://img.shields.io/badge/Pytest%20Suite-42%2F42%20Passed-10b981?style=flat-square&logo=pytest)](file:///backend/tests)
 [![Benchmark Evaluation](https://img.shields.io/badge/AI%20Evaluation-25%2F25%20(100%25)-3b82f6?style=flat-square)](file:///evaluation/eval_runner.py)
 [![Docker](https://img.shields.io/badge/Docker%20Compose-Linux%20%7C%20Windows-06b6d4?style=flat-square&logo=docker)](file:///docker-compose.yml)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20Python%203.11-009688?style=flat-square&logo=fastapi)](file:///backend)
